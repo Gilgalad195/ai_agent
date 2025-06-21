@@ -164,19 +164,35 @@ def main():
             print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
                 
 
-        if response.function_calls != []:
-            for function_call_part in response.function_calls:
-                function_call_result = call_function(function_call_part, verbose)
-                try:
-                    response_data = function_call_result.parts[0].function_response.response
-                    if verbose:
-                        print(f"-> {response_data}")
-                except (IndexError, AttributeError):
-                    raise Exception("Fatal exception: unexpected response structure")
-        else:
-            print(response.text) 
+        if not response.function_calls:
+            return response.text
+        
+        for candidate in response.candidates:
+            messages.append(candidate.content)
+        
+        function_responses = []
+        for function_call_part in response.function_calls:
+            function_call_result = call_function(function_call_part, verbose)
+            messages.append(function_call_result)
+            if (not function_call_result.parts or not function_call_result.parts[0].function_response):
+                raise Exception("empty function call result")
+            response_data = function_call_result.parts[0].function_response.response
+            if verbose:
+                print(f"-> {response_data}")
+            function_responses.append(function_call_result.parts[0])
+        
+        if not function_responses:
+            raise Exception("no function responses generated, exiting")
+        
+        return response
+        
     
-    generate_content()
+    for i in range(20):
+        response = generate_content()
+        if isinstance(response, str):
+            print (response)
+            break
+
 
 if __name__ == "__main__":
     main()
